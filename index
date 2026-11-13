@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runner Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ============ THANH TRÊN ============ -->
+<header class="topbar">
+  <div class="brand">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    <span class="brand-name">RUNNER MONITOR</span>
+    <span class="tag mono">ESP32 · BMP180 · PIR</span>
+  </div>
+  <div class="node-chip mono">
+    <span>TOPIC: <b class="topic-base">--</b></span>
+    <span class="sep"></span>
+    <span>GÓI NHẬN: <b class="packets-rx">0</b></span>
+  </div>
+  <div class="mqtt-pill" id="conn">
+    <span class="dot"></span>
+    <div>
+      <b class="conn-text mono">MQTT CONNECTING</b>
+      <small class="conn-host mono">--</small>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="side-title mono">KÊNH GIÁM SÁT</div>
+    <nav>
+      <a href="#top" class="active">Dữ liệu trực tiếp</a>
+      <a href="#charts">Biểu đồ theo thời gian</a>
+      <a href="#control">Điều khiển thiết bị</a>
+      <a href="#mqtt">Thông tin MQTT</a>
+    </nav>
+  </aside>
+
+  <main id="top">
+    <!-- ============ THẺ NODE ============ -->
+    <section class="card node-card">
+      <div class="node-icon">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+      </div>
+      <div class="node-info">
+        <h1>ESP32 Runner Node</h1>
+        <div class="meta mono">
+          <span class="chip blue">RTOS · 2 CORE</span>
+          <span>Cập nhật lúc: <b class="last-update">--:--:--</b></span>
+          <span>Cảm biến: BMP180 (I2C 0x77)</span>
+        </div>
+      </div>
+      <div class="node-actions">
+        <span class="live-badge mono" id="liveBadge"><span class="dot"></span><span class="live-text">CHỜ DỮ LIỆU</span></span>
+        <button class="btn ghost btn-clear" type="button">Xóa biểu đồ</button>
+      </div>
+    </section>
+
+    <!-- ============ THANH CẢNH BÁO ============ -->
+    <div class="alert-bar" id="alertBar">
+      <svg class="ico" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <span class="alert-text">Chưa có dữ liệu từ thiết bị</span>
+    </div>
+
+    <!-- ============ 3 THẺ SỐ LIỆU ============ -->
+    <section class="metrics">
+      <article class="card metric">
+        <div class="metric-top">
+          <div>
+            <div class="mono kicker">CH-01 · CẢM BIẾN</div>
+            <div class="metric-name">NHIỆT ĐỘ</div>
+          </div>
+          <div class="ico-box red"><svg class="ico" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg></div>
+        </div>
+        <div class="big"><span class="value-temp">--</span><span class="unit">°C</span></div>
+        <div class="metric-mid">
+          <span class="chip green mono status-temp">CHỜ DỮ LIỆU</span>
+          <span class="mono delta delta-temp">--</span>
+        </div>
+        <div class="stats mono">
+          <div><small>THẤP NHẤT</small><b class="t-min">--</b></div>
+          <div><small>CAO NHẤT</small><b class="t-max">--</b></div>
+          <div><small>TRUNG BÌNH</small><b class="t-avg">--</b></div>
+        </div>
+      </article>
+
+      <article class="card metric">
+        <div class="metric-top">
+          <div>
+            <div class="mono kicker">CH-02 · CẢM BIẾN</div>
+            <div class="metric-name">ÁP LỰC KHÍ QUYỂN</div>
+          </div>
+          <div class="ico-box blue"><svg class="ico" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></div>
+        </div>
+        <div class="big"><span class="value-pressure">--</span><span class="unit">hPa</span></div>
+        <div class="metric-mid">
+          <span class="chip blue mono status-pressure">CHỜ DỮ LIỆU</span>
+          <span class="mono delta delta-pressure">--</span>
+        </div>
+        <div class="stats mono">
+          <div><small>THẤP NHẤT</small><b class="p-min">--</b></div>
+          <div><small>CAO NHẤT</small><b class="p-max">--</b></div>
+          <div><small>TRUNG BÌNH</small><b class="p-avg">--</b></div>
+        </div>
+      </article>
+
+      <article class="card metric">
+        <div class="metric-top">
+          <div>
+            <div class="mono kicker">CH-03 · TÍNH TOÁN</div>
+            <div class="metric-name">ĐỘ CAO SO VỚI MỰC NƯỚC BIỂN</div>
+          </div>
+          <div class="ico-box grey"><svg class="ico" viewBox="0 0 24 24"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg></div>
+        </div>
+        <div class="big"><span class="value-altitude">--</span><span class="unit">m</span></div>
+        <div class="metric-mid">
+          <span class="chip grey mono status-altitude">CHỜ DỮ LIỆU</span>
+          <span class="mono delta delta-altitude">--</span>
+        </div>
+        <div class="stats mono">
+          <div><small>THẤP NHẤT</small><b class="a-min">--</b></div>
+          <div><small>CAO NHẤT</small><b class="a-max">--</b></div>
+          <div><small>TRUNG BÌNH</small><b class="a-avg">--</b></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ============ BIỂU ĐỒ ============ -->
+    <section class="charts" id="charts">
+      <article class="card chart-card">
+        <div class="chart-head">
+          <div>
+            <h2>Biểu đồ Nhiệt độ theo thời gian <span class="dot red"></span></h2>
+            <p class="mono sub">Dữ liệu thời gian thực từ BMP180</p>
+          </div>
+          <div class="range" role="group" aria-label="Số điểm hiển thị">
+            <button type="button" class="range-btn active" data-pts="30">30 điểm</button>
+            <button type="button" class="range-btn" data-pts="60">60 điểm</button>
+            <button type="button" class="range-btn" data-pts="120">120 điểm</button>
+          </div>
+        </div>
+        <div class="reading-row mono"><span>ĐIỂM ĐỌC HIỆN TẠI</span><span class="pill dark pill-temp">--</span></div>
+        <div class="chart-box"><canvas id="chartTemp"></canvas></div>
+        <div class="chart-foot mono">
+          <span>TB: <b class="ct-avg">--</b></span>
+          <span>CAO NHẤT: <b class="ct-max red-text">--</b></span>
+          <span>THẤP NHẤT: <b class="ct-min blue-text">--</b></span>
+        </div>
+      </article>
+
+      <article class="card chart-card">
+        <div class="chart-head">
+          <div>
+            <h2>Biểu đồ Độ cao theo thời gian <span class="dot blue"></span></h2>
+            <p class="mono sub">Độ cao tính từ áp suất (chuẩn mực nước biển 1013.25 hPa)</p>
+          </div>
+        </div>
+        <div class="reading-row mono"><span>ĐIỂM ĐỌC HIỆN TẠI</span><span class="pill dark pill-alt">--</span></div>
+        <div class="chart-box"><canvas id="chartAlt"></canvas></div>
+        <div class="chart-foot mono">
+          <span>TB: <b class="ca-avg">--</b></span>
+          <span>CAO NHẤT: <b class="ca-max blue-text">--</b></span>
+          <span>THẤP NHẤT: <b class="ca-min">--</b></span>
+        </div>
+      </article>
+    </section>
+
+    <!-- ============ ĐIỀU KHIỂN ============ -->
+    <section class="card control" id="control">
+      <div class="control-head">
+        <div>
+          <h2 class="section-title">BẢNG ĐIỀU KHIỂN THIẾT BỊ</h2>
+          <p class="mono sub">Gửi lệnh qua MQTT tới <b class="topic-led">--</b> và <b class="topic-buz">--</b></p>
+        </div>
+        <span class="chip grey mono">CHẾ ĐỘ MANUAL / AUTO</span>
+      </div>
+
+      <div class="control-grid">
+        <div class="device">
+          <div class="device-head">
+            <div class="ico-box green"><svg class="ico" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/></svg></div>
+            <div class="device-title">
+              <h3>Điều khiển Đèn</h3>
+              <span class="mono sub">GPIO 17 · sáng tự động khi PIR phát hiện người</span>
+            </div>
+            <span class="chip grey mono state-led-badge">LED OFF</span>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn dev btn-led-on">Bật đèn</button>
+            <button type="button" class="btn dev btn-led-off">Tắt đèn</button>
+            <button type="button" class="btn dev btn-led-auto">Tự động</button>
+          </div>
+          <div class="cmd mono"><span class="cmd-led">CMD: --</span><span class="mode-led">--</span></div>
+        </div>
+
+        <div class="device">
+          <div class="device-head">
+            <div class="ico-box grey"><svg class="ico" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></div>
+            <div class="device-title">
+              <h3>Điều khiển Còi cảnh báo</h3>
+              <span class="mono sub">GPIO 5 · kêu khi vượt ngưỡng hoặc độ cao đổi đột ngột</span>
+            </div>
+            <span class="chip grey mono state-buz-badge">BUZZER OFF</span>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn dev btn-buz-on">Bật còi</button>
+            <button type="button" class="btn dev btn-buz-off">Tắt còi</button>
+            <button type="button" class="btn dev btn-buz-auto">Tự động</button>
+          </div>
+          <div class="cmd mono"><span class="cmd-buz">CMD: --</span><span class="mode-buz">--</span></div>
+        </div>
+      </div>
+
+      <div class="motion-row">
+        <span class="mono kicker">CẢM BIẾN CHUYỂN ĐỘNG (PIR)</span>
+        <b class="value-motion">--</b>
+      </div>
+    </section>
+
+    <!-- ============ THÔNG TIN MQTT ============ -->
+    <section class="card mqtt" id="mqtt">
+      <div class="control-head">
+        <div>
+          <h2 class="section-title">THÔNG TIN MQTT BROKER</h2>
+          <p class="mono sub">Truyền dữ liệu thời gian thực qua WebSocket bảo mật</p>
+        </div>
+        <span class="live-badge mono" id="mqttBadge"><span class="dot"></span><span class="mqtt-badge-text">ĐANG KẾT NỐI</span></span>
+      </div>
+      <div class="info-grid">
+        <div class="info"><small class="mono">BROKER HOST</small><b class="mono info-host">--</b></div>
+        <div class="info"><small class="mono">WSS PORT</small><b class="mono info-port">--</b></div>
+        <div class="info"><small class="mono">TOPIC DỮ LIỆU</small><b class="mono info-data">--</b></div>
+        <div class="info"><small class="mono">TOPIC ĐIỀU KHIỂN</small><b class="mono info-ctl">--</b></div>
+        <div class="info"><small class="mono">CLIENT ID</small><b class="mono info-client">--</b></div>
+        <div class="info"><small class="mono">GÓI ĐÃ NHẬN</small><b class="mono packets-rx2">0</b></div>
+      </div>
+    </section>
+
+    <footer class="footer mono">RUNNER MONITOR · ESP32 · MQTT · Giám sát cảm biến thời gian thực</footer>
+  </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
